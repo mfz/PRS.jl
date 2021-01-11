@@ -124,7 +124,7 @@ function elnetg_path(X, r, λs, s;
     nsubj = size(X, 1)
     Xs = X .* sqrt((1.0 - s)/nsubj)
     ret = elnetg!(Xs, r, λs[1], s, view(β, :, 1);
-                  maxiter = maxiter, thresh = thresh)
+                  maxiter = maxiter, thresh = thresh, verbose = verbose)
     converged[1] = ret.converged
     
     for l = 2:nl

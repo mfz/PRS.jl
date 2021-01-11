@@ -156,10 +156,13 @@ Data frames `df1` and `df2` are first matched by columns specified in
 - `matchcol == 1` if values for `alleles1` and `alleles2` match
 - `matchcol == -1` if values for `alleles1` and `alleles2` are swapped
 - `matchcol == 0` otherwise
+
+Note: Swapped means simply swapping of alleles, not applying reverse
+complement as done in other implementations.
+
 """
-function snp_join(df1, df2; on = [:Chrom, :Pos],
-                  alleles1 = [:A1_1, :A2_1], alleles2 = [:A1_2, :A2_2],
-                  matchcol = :sign)
+function snp_join(df1, df2; on = [:Chrom, :Pos], alleles1 = [:A1_1, :A2_1],
+                  alleles2 = [:A1_2, :A2_2], matchcol = :sign)
 
     m = innerjoin(df1, df2, on = on)
     m[!, matchcol] .= 0
@@ -212,3 +215,8 @@ function postfix_names!(df::DataFrame, postfix::String)
     newnames = [ x * postfix for x in oldnames]
     rename!(df, newnames)
 end
+
+
+# do not export this
+# should be called as PRS.pkgpath
+pkgpath(paths...) = normpath(joinpath(@__DIR__, "..", paths...))

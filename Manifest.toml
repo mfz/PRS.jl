@@ -177,9 +177,9 @@ version = "0.2.2"
 
 [[OffsetArrays]]
 deps = ["Adapt"]
-git-tree-sha1 = "5b9ed21d50a91bb783c87f37c8da9266f0265504"
+git-tree-sha1 = "5b644e46f71e744fac0775b885809fd82c4ca904"
 uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "1.4.4"
+version = "1.5.0"
 
 [[OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]

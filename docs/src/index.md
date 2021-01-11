@@ -23,8 +23,8 @@ markersDF(p::PlinkReader)
 
 getindex(p::PlinkReader, s::Int, m::Int)
 
-genotypeMatrix(p::PlinkReader, markerIdx, sampleIdx = nothing;
-               normalize = true)
+dosageMatrix(p::PlinkReader, markerIdx, sampleIdx = nothing;
+             normalize = true)
 ```
 
 ## LDMatrix

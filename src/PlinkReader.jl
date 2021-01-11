@@ -15,7 +15,7 @@ export Marker,
     marker_index,
     getindex,
     applyGeneticMap!,
-    genotypeMatrix
+    dosageMatrix
 
 """
     Marker(chrom, id, cm, pos, a1, a2)
@@ -294,17 +294,17 @@ end
 
 
 """
-    genotypeMatrix(p::PlinkReader, markerIdx, sampleIdx = nothing;
+    dosageMatrix(p::PlinkReader, markerIdx, sampleIdx = nothing;
                    normalize = true)
 
-Create genotype matrix (samples x markers) for `markerIdx` and
-`sampleIdx` from `PlinkReader`. Here genotype is expressed as count of
-alternative allele (not as in Plink convention).
+Create dosage matrix (samples x markers) for `markerIdx` and
+`sampleIdx` from `PlinkReader`. Here dosage is expressed as count of
+alternative allele.
 
-Replace missing genotypes with mean genotype. If `normalize = true`,
+Replace missing genotypes with mean dosage. If `normalize = true`,
 normalize markers to mean μ = 0 and standard deviation σ = 1.
 """
-function genotypeMatrix(p::PlinkReader, markerIdx, sampleIdx = nothing;
+function dosageMatrix(p::PlinkReader, markerIdx, sampleIdx = nothing;
                         normalize = true)
 
     sampleIdx == nothing && (sampleIdx = 1:nsamples(p))
