@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Tutorial · PRS.jl</title><link rel="canonical" href="https://mfz.github.io/PRS.jl/tutorial/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">PRS.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Tutorial</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Tutorial</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/mfz/PRS.jl/blob/master/docs/src/tutorial.md#L" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Tutorial"><a class="docs-heading-anchor" href="#Tutorial">Tutorial</a><a id="Tutorial-1"></a><a class="docs-heading-anchor-permalink" href="#Tutorial" title="Permalink"></a></h1><p>Download data from &quot;Basic Tutorial for Polygenic Risk Score Analyses&quot; at https://choishingwan.github.io/PRS-Tutorial.</p><h2 id="lassosum"><a class="docs-heading-anchor" href="#lassosum">lassosum</a><a id="lassosum-1"></a><a class="docs-heading-anchor-permalink" href="#lassosum" title="Permalink"></a></h2><p>Load required packages and set paths to data files.</p><pre><code class="language-julia">using DataFrames
+using CSV
+using Distributions: Normal, cquantile
+using PRS
+
+DATA_DIR = &quot;/Users/florian/workAtHome/PRSdata&quot;
+SSF_PATH = joinpath(DATA_DIR, &quot;Height.QC&quot;)
+PLINK_PATH = joinpath(DATA_DIR, &quot;EUR.QC&quot;)
+
+RESULT_DIR = mkdir(&quot;/tmp/test_PRS_lassosum&quot;)</code></pre><p>Load the summary data in a data frame and add &quot;chr&quot; prefix to chromosomes.</p><pre><code class="language-julia">ssf = DataFrame!(CSV.File(SSF_PATH; delim=&quot;\t&quot;))
+ssf.Chrom = &quot;chr&quot; .* string.(ssf.CHR)
+ssf.Pos = ssf.BP</code></pre><p>The lassosum algorithm works on genotype-phenotype correlations. Convert p-value to those.</p><pre><code class="language-julia">ssf.Z = sign.(log.(ssf.OR)) .* cquantile.(Normal(),ssf.P / 2.0)
+ssf.COR = z2cor.(ssf.Z, ssf.N)</code></pre><pre><code class="language-julia">plink = PlinkReader(PLINK_PATH)
+m = markersDF(plink)
+postfix_names!(m, &quot;_GT&quot;)</code></pre><p>Remove markers with mismatching alleles.  TODO: remove ambiguous alleles as well</p><pre><code class="language-julia">data = snp_join(ssf, m, on = [:Chrom =&gt; :Chrom_GT, :BP =&gt; :Pos_GT],
+	       alleles1 = [:A1, :A2],
+	       alleles2 = [:A1_GT, :A2_GT],
+	       matchcol = :sign_GT)
+
+data = data[data.sign_GT .!= 0, :]</code></pre><p>Run lassosum on chromosome blocks. Note that the original lassosum algorithm is run on LD blocks (or uniform blocks) instead. Need to assess performance difference here.</p><pre><code class="language-julia">ss = [0.2, 0.5, 0.9, 1.]
+λs = exp.(range(log(0.01), log(0.001); length = 10)) # sorted from large to small
+
+chrom = &quot;chr21&quot;
+
+println(&quot;Processing chromosome $chrom&quot;)
+
+cols = [:Chrom, :Pos, :A1, :A2]
+block = data[data.Chrom .== chrom,:]
+r = block.COR .* block.sign_GT
+X = dosageMatrix(plink, block.Idx_GT)
+for sidx in 1:length(ss)
+  println(&quot;s = $(ss[sidx])&quot;)
+  res = elnetg_path(X, r, λs, ss[sidx]; verbose=true)
+
+  for lidx in 1:length(λs)
+    col = Symbol(&quot;eff_lassosum_$(sidx)_$(lidx)&quot;)
+    block[!, col] .= res.β[:,lidx] .* block.sign_GT
+    push!(cols, col)
+  end
+  CSV.write(joinpath(RESULT_DIR, &quot;$chrom.weights&quot;), b[!, cols]; delim = &quot;\t&quot;)
+end	</code></pre></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Monday 11 January 2021 08:25">Monday 11 January 2021</span>. Using Julia version 1.5.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
